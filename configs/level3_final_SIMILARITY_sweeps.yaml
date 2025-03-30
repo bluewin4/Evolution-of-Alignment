@@ -1,0 +1,47 @@
+# Configuration File: configs/level3_final_SIMILARITY_sweeps.yaml
+# Goal: Run the SIMILARITY scenario across beta & N_Q sweeps.
+# Set LEVEL: 1 to use the parameter sweep runner.
+
+LEVEL: 1 # Use Level 1 runner for sweep capability
+N_RUNS: 50
+N_GENERATIONS: 100 # Adjusted as requested
+POPULATION_SIZE: 300
+N_BELIEFS_TOTAL: 3000
+N_BELIEFS_PER_MODEL: 50
+N_QUESTIONS: 75    # Base value (overridden by sweep)
+SEED: 20250331     # Consistent seed across scenario files
+
+BELIEF_GENERATION: # Use clustered landscape
+  type: "clustered"
+  global_correlation: 0.0
+  clusters:
+    # Cluster 0: Benign
+    - {name: "Benign",    mu_v:  0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.3}
+    # Cluster 1: Neutral
+    - {name: "Neutral",   mu_v:  0.1, mu_a:  0.2, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.3}
+    # Cluster 2: Deceptive (Target for prop sweeps)
+    - {name: "Deceptive", mu_v: -0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho: 0, prop: 0.4} # Base prop overridden by sweeps
+
+# --- Scenario Settings: SIMILARITY ---
+ACTIVATION_TYPE: "similarity" # Changed
+ACTIVATION_PARAMS: # Ensure similarity params are present
+  embedding_dim: 16
+  base_prob: 0.1
+  similarity_scale: 5.0
+  noise_std: 0.05
+  # density: 0.1 # Not used by similarity activation
+REPRODUCTION: "inheritance"
+MUTATION_RATE: 0.0
+
+SELECTION_PRESSURE_BETA: 5.0 # Base value (overridden by sweep)
+
+# --- Define SWEEPS ---
+PARAMETER_SWEEPS:
+  beta: # Sweep selection pressure
+    param_path: ["SELECTION_PRESSURE_BETA"]
+    values: [1.0, 5.0, 10.0, 15.0]
+  N_Questions: # Sweep question count (belief/question ratio)
+    param_path: ["N_QUESTIONS"]
+    values: [25, 75, 150] # Ratios 0.5, 1.5, 3.0
+
+RUN_2D_SWEEP: False

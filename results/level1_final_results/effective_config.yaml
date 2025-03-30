@@ -1,0 +1,73 @@
+LEVEL: 1
+N_GENERATIONS: 100
+POPULATION_SIZE: 300
+N_BELIEFS_TOTAL: 3000
+N_BELIEFS_PER_MODEL: 50
+N_QUESTIONS: 100
+ACTIVATION_TYPE: simple
+ACTIVATION_PARAMS:
+  density: 0.1
+SELECTION_PRESSURE_BETA: 5.0
+N_RUNS: 50
+BELIEF_GENERATION:
+  type: bivariate
+  mu_v: 0.0
+  mu_a: 0.0
+  sigma_v: 1.0
+  sigma_a: 1.0
+  rho: 0.5
+REPRODUCTION: inheritance
+MUTATION_RATE: 0.0
+PARAMETER_SWEEPS:
+  rho:
+    param_path:
+    - BELIEF_GENERATION
+    - rho
+    values:
+    - 0.0
+    - 0.2
+    - 0.4
+    - 0.6
+    - 0.8
+    - 0.9
+    - 0.95
+    - 1.0
+  beta:
+    param_path:
+    - SELECTION_PRESSURE_BETA
+    values:
+    - 1.0
+    - 3.0
+    - 5.0
+    - 7.0
+    - 10.0
+    - 15.0
+  N_Questions:
+    param_path:
+    - N_QUESTIONS
+    values:
+    - 25
+    - 75
+    - 150
+RUN_2D_SWEEP: true
+2D_SWEEP:
+  param1_name: rho
+  param1_path:
+  - BELIEF_GENERATION
+  - rho
+  param1_values:
+  - 0.0
+  - 0.3
+  - 0.6
+  - 0.9
+  param2_name: beta
+  param2_path:
+  - SELECTION_PRESSURE_BETA
+  param2_values:
+  - 1.0
+  - 5.0
+  - 10.0
+  - 15.0
+  n_runs: 25
+SEED: 20250329
+RESULTS_DIR: results/level1_final_results

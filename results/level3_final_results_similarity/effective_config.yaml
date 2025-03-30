@@ -1,0 +1,61 @@
+LEVEL: 1
+N_GENERATIONS: 100
+POPULATION_SIZE: 300
+N_BELIEFS_TOTAL: 3000
+N_BELIEFS_PER_MODEL: 50
+N_QUESTIONS: 75
+ACTIVATION_TYPE: similarity
+ACTIVATION_PARAMS:
+  embedding_dim: 16
+  base_prob: 0.1
+  similarity_scale: 5.0
+  noise_std: 0.05
+SELECTION_PRESSURE_BETA: 5.0
+N_RUNS: 50
+BELIEF_GENERATION:
+  type: clustered
+  global_correlation: 0.0
+  clusters:
+  - name: Benign
+    mu_v: 0.7
+    mu_a: 0.7
+    sigma_v: 0.5
+    sigma_a: 0.3
+    rho: 0
+    prop: 0.3
+  - name: Neutral
+    mu_v: 0.1
+    mu_a: 0.2
+    sigma_v: 0.5
+    sigma_a: 0.3
+    rho: 0
+    prop: 0.3
+  - name: Deceptive
+    mu_v: -0.7
+    mu_a: 0.7
+    sigma_v: 0.5
+    sigma_a: 0.3
+    rho: 0
+    prop: 0.4
+REPRODUCTION: inheritance
+MUTATION_RATE: 0.0
+PARAMETER_SWEEPS:
+  beta:
+    param_path:
+    - SELECTION_PRESSURE_BETA
+    values:
+    - 1.0
+    - 5.0
+    - 10.0
+    - 15.0
+  N_Questions:
+    param_path:
+    - N_QUESTIONS
+    values:
+    - 25
+    - 75
+    - 150
+RUN_2D_SWEEP: false
+2D_SWEEP: {}
+SEED: 20250331
+RESULTS_DIR: results/level3_final_results_similarity

@@ -1,0 +1,50 @@
+# Configuration File: configs/level1_final_sweeps.yaml
+# Goal: Comprehensive Level 1 sweeps (rho, beta, N_Questions) + 2D sweep for paper.
+
+LEVEL: 1
+N_RUNS: 50         # High N_RUNS for statistical significance in 1D sweeps
+N_GENERATIONS: 100 # Sufficient generations for convergence
+POPULATION_SIZE: 300
+N_BELIEFS_TOTAL: 3000
+N_BELIEFS_PER_MODEL: 50
+N_QUESTIONS: 100   # Base value (overridden by sweep)
+SEED: 20250329     # Base seed for reproducibility (Use a fixed date/number)
+
+BELIEF_GENERATION:
+  type: "bivariate" # Level 1 uses bivariate
+  mu_v: 0.0
+  mu_a: 0.0
+  sigma_v: 1.0
+  sigma_a: 1.0
+  rho: 0.5         # Base value (overridden by sweep)
+
+ACTIVATION_TYPE: "simple"
+ACTIVATION_PARAMS: {density: 0.1}
+
+REPRODUCTION: "inheritance"
+MUTATION_RATE: 0.0
+
+SELECTION_PRESSURE_BETA: 5.0 # Base value (overridden by sweep)
+
+# Define 1D parameter sweeps
+PARAMETER_SWEEPS:
+  rho: # Sweep correlation
+    param_path: ["BELIEF_GENERATION", "rho"]
+    values: [0.0, 0.2, 0.4, 0.6, 0.8, 0.9, 0.95, 1.0]
+  beta: # Sweep selection pressure
+    param_path: ["SELECTION_PRESSURE_BETA"]
+    values: [1.0, 3.0, 5.0, 7.0, 10.0, 15.0]
+  N_Questions: # Sweep test sparsity/thoroughness
+    param_path: ["N_QUESTIONS"]
+    values: [25, 75, 150] # Sparse (0.5), Medium (1.5), Thorough (3.0) Ratios
+
+# Define 2D parameter sweep (rho vs beta)
+RUN_2D_SWEEP: True
+2D_SWEEP:
+  param1_name: "rho"
+  param1_path: ["BELIEF_GENERATION", "rho"]
+  param1_values: [0.0, 0.3, 0.6, 0.9]  # Fewer points for 2D sweep
+  param2_name: "beta"
+  param2_path: ["SELECTION_PRESSURE_BETA"]
+  param2_values: [1.0, 5.0, 10.0, 15.0] # Fewer points for 2D sweep
+  n_runs: 25 # Runs per combo (adjust based on resources, 25+ recommended)

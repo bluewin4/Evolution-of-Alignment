@@ -1,0 +1,108 @@
+# Configuration File: configs/publication_run_level4.yaml
+# Goal: Define a robust Level 4 configuration for generating publication-quality results.
+# Runs comparisons between different test designs and dynamics using config-driven scenarios.
+
+LEVEL: 4 # Use Level 4 runner for scenario comparison with dynamics
+
+# --- Publication-Ready Settings ---
+# Increased N_RUNS for statistical significance.
+# Increased N_GENERATIONS and POPULATION_SIZE for more stable evolutionary trajectories.
+# Increased N_BELIEFS_TOTAL/PER_MODEL for a richer belief space.
+# Adjust these based on computational resources and observed convergence in preliminary runs.
+N_RUNS: 50             # Number of runs per scenario (Increased from 3)
+N_GENERATIONS: 100       # Simulation length (Increased from 100)
+POPULATION_SIZE: 300     # Population size (Increased from 100)
+N_BELIEFS_TOTAL: 3000    # Total available beliefs (Increased from 1000)
+N_BELIEFS_PER_MODEL: 50  
+N_QUESTIONS: 75         
+SEED: 20250331           # Consistent base seed for reproducibility
+
+# --- Belief Landscape Configuration ---
+BELIEF_GENERATION:
+  type: "clustered"      # Using distinct belief clusters
+  global_correlation: 0.0 # Default correlation within clusters if not specified below
+  # Parameters for 'improving_alignment' dynamic feature
+  target_rho: 0.9        # Target correlation evaluator aims for
+  improvement_rate: 0.05 # Slower rate of improvement towards target_rho (Adjust as needed)
+  # Cluster Definitions: Benign, Neutral, Deceptive (as before)
+  clusters:
+    - {name: "Benign", mu_v: 0.7, mu_a: 0.7, sigma_v: 0.5, sigma_a: 0.3, rho: 0.0, prop: 0.3}
+    - {name: "Neutral", mu_v: 0.1, mu_a: 0.2, sigma_v: 0.5, sigma_a: 0.3, rho: 0.0, prop: 0.4}
+    - {name: "Deceptive", mu_v: -0.7, mu_a: 0.7, sigma_v: 0.5, sigma_a: 0.3, rho: 0.0, prop: 0.3}
+
+# --- Base Simulation Parameters (Defaults for Scenarios) ---
+# These represent the simplest case unless overridden in a scenario.
+ACTIVATION_TYPE: "simple"    # Default test activation model
+ACTIVATION_PARAMS:           # Comprehensive defaults for all activation types
+  density: 0.1             # Used by simple, coverage, correlation
+  coverage: 0.5            # Default for 'coverage' type
+  correlation: 0.3         # Default for 'correlation' type
+  embedding_dim: 10        # Default for 'similarity' type
+  base_prob: 0.2           # Default for 'similarity' type
+  similarity_scale: 5.0    # Default for 'similarity' type
+  noise_std: 0.1           # Default for 'similarity' type
+
+REPRODUCTION: "inheritance"  # Default: No mutation
+MUTATION_RATE: 0.0           # Default: Mutation inactive
+
+SELECTION_PRESSURE_BETA: 5.0 # Moderate selection pressure
+
+# Base parameters for Dynamic Features (activated via DYNAMIC_FEATURES list below)
+DYNAMIC_FEATURES: []         # Default: No dynamic features active
+DYNAMIC_ACTIVATION_INTERVAL: 15 # How often dynamic_test adds questions (Increased interval)
+ALIGNMENT_IMPROVEMENT_INTERVAL: 20 # How often improving_alignment updates (Increased interval)
+
+# --- Level 4 Scenario Definitions ---
+# Defines the specific experimental conditions to compare.
+LEVEL4_SCENARIOS:
+  # Scenario 1: Baseline - Simple test, no mutation, no dynamics. Reference point.
+  Baseline:
+    # Uses all base parameters defined above.
+    DYNAMIC_FEATURES: [] # Explicitly empty
+
+  # Scenario 2: Mutation - Adds evolutionary exploration via belief swapping.
+  Mutation:
+    REPRODUCTION: "mutation"
+    MUTATION_RATE: 0.01    # Standard mutation rate
+
+  # Scenario 3: Coverage Test - Explores effect of broader test coverage.
+  Coverage_Mid:
+    ACTIVATION_TYPE: "coverage"
+    ACTIVATION_PARAMS: {coverage: 0.6, density: 0.1} # Moderate coverage
+
+  # Scenario 4: Correlated Test - Explores effect of redundancy in test questions.
+  Correlation_Mid:
+    ACTIVATION_TYPE: "correlation"
+    ACTIVATION_PARAMS: {correlation: 0.5, density: 0.1} # Moderate correlation
+
+  # Scenario 5: Dynamic Test - Simulates test adaptation against deceptive beliefs.
+  Dynamic_Test:
+    DYNAMIC_FEATURES: ["dynamic_test"]
+    # Uses default DYNAMIC_ACTIVATION_INTERVAL: 15
+
+  # Scenario 6: Improving Alignment - Simulates evaluators getting better over time.
+  Improving_Align:
+    DYNAMIC_FEATURES: ["improving_alignment"]
+    # Uses default ALIGNMENT_IMPROVEMENT_INTERVAL: 20
+
+  # Scenario 7: Combined Dynamics & Mutation - Explores interplay of all factors.
+  Combined_Dynamic_Mutation:
+    ACTIVATION_TYPE: "coverage" # Use coverage activation as a base
+    ACTIVATION_PARAMS: {coverage: 0.6, density: 0.1}
+    REPRODUCTION: "mutation"
+    MUTATION_RATE: 0.01
+    DYNAMIC_FEATURES: ["dynamic_test", "improving_alignment"]
+    # Override intervals for this specific combination if desired
+    DYNAMIC_ACTIVATION_INTERVAL: 12
+    ALIGNMENT_IMPROVEMENT_INTERVAL: 18
+    BELIEF_GENERATION: # Override specific nested parameter for this scenario
+      target_rho: 0.95  # Faster/higher alignment target
+
+  # Optional Scenario 8: Similarity Activation - Add if comparing different activation models is key.
+  # Similarity_Activation:
+  #   ACTIVATION_TYPE: "similarity"
+  #   # Uses defaults from base ACTIVATION_PARAMS for similarity
+
+# --- Sweeps Not Used by Default Level 4 Runner ---
+# PARAMETER_SWEEPS: {} # Define sweeps here if modifying runner for systematic L4 sweeps
+# RUN_2D_SWEEP: False

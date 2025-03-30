@@ -1,0 +1,55 @@
+# Configuration File: configs/level2_final_sweeps.yaml
+# Goal: Comprehensive Level 2 sweeps (1D: beta, global_corr, deceptive_prop)
+#       + 2D sweep (beta vs deceptive_prop) in a clustered landscape for paper.
+
+LEVEL: 2
+N_RUNS: 50         # N_RUNS for 1D sweeps
+N_GENERATIONS: 100 # Consistent with L1
+POPULATION_SIZE: 300
+N_BELIEFS_TOTAL: 3000
+N_BELIEFS_PER_MODEL: 50
+N_QUESTIONS: 75    # Default ratio > 1
+SEED: 20250329
+
+BELIEF_GENERATION:
+  type: "clustered"
+  global_correlation: 0.0 # Base value (overridden by 1D sweep)
+  clusters:
+    # Cluster 0: Benign
+    - {name: "Benign",    mu_v:  0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.3}
+    # Cluster 1: Neutral
+    - {name: "Neutral",   mu_v:  0.1, mu_a:  0.2, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.3}
+    # Cluster 2: Deceptive (Target for prop sweeps)
+    - {name: "Deceptive", mu_v: -0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho: 0, prop: 0.4} # Base prop overridden by sweeps
+
+ACTIVATION_TYPE: "simple" # Or "similarity"
+ACTIVATION_PARAMS: {density: 0.1}
+# If using similarity, add params here
+
+REPRODUCTION: "inheritance" # Or "mutation"
+MUTATION_RATE: 0.01         # Only used if REPRODUCTION is "mutation"
+
+SELECTION_PRESSURE_BETA: 5.0 # Base value (overridden by sweeps)
+
+# Define 1D parameter sweeps for Level 2
+PARAMETER_SWEEPS:
+  beta: # Sweep selection pressure
+    param_path: ["SELECTION_PRESSURE_BETA"]
+    values: [1.0, 3.0, 5.0, 7.0, 10.0, 15.0]
+  deceptive_prop: # Sweep initial proportion of deceptive cluster
+    param_path: ["BELIEF_GENERATION", "clusters", 2, "prop"] # Index 2 = Deceptive
+    values: [0.1, 0.2, 0.3, 0.4, 0.5]
+  global_correlation: # Sweep underlying correlation between clusters
+    param_path: ["BELIEF_GENERATION", "global_correlation"]
+    values: [0.0, 0.2, 0.4, 0.6, 0.8]
+
+# Define 2D parameter sweep for Level 2 (beta vs deceptive_prop)
+RUN_2D_SWEEP: True # *** ENABLED ***
+2D_SWEEP:
+  param1_name: "beta"
+  param1_path: ["SELECTION_PRESSURE_BETA"]
+  param1_values: [1.0, 5.0, 10.0, 15.0] # Fewer points for 2D sweep
+  param2_name: "deceptive_prop"
+  param2_path: ["BELIEF_GENERATION", "clusters", 2, "prop"]
+  param2_values: [0.1, 0.25, 0.4, 0.55] # Range of initial deceptive props
+  n_runs: 25 # Runs per combo (adjust based on resources)

@@ -1,0 +1,90 @@
+LEVEL: 4
+N_GENERATIONS: 100
+POPULATION_SIZE: 300
+N_BELIEFS_TOTAL: 3000
+N_BELIEFS_PER_MODEL: 50
+N_QUESTIONS: 75
+ACTIVATION_TYPE: simple
+ACTIVATION_PARAMS:
+  density: 0.1
+  coverage: 0.5
+  correlation: 0.3
+  embedding_dim: 10
+  base_prob: 0.2
+  similarity_scale: 5.0
+  noise_std: 0.1
+SELECTION_PRESSURE_BETA: 5.0
+N_RUNS: 50
+BELIEF_GENERATION:
+  type: clustered
+  global_correlation: 0.0
+  target_rho: 0.9
+  improvement_rate: 0.05
+  clusters:
+  - name: Benign
+    mu_v: 0.7
+    mu_a: 0.7
+    sigma_v: 0.5
+    sigma_a: 0.3
+    rho: 0.0
+    prop: 0.3
+  - name: Neutral
+    mu_v: 0.1
+    mu_a: 0.2
+    sigma_v: 0.5
+    sigma_a: 0.3
+    rho: 0.0
+    prop: 0.4
+  - name: Deceptive
+    mu_v: -0.7
+    mu_a: 0.7
+    sigma_v: 0.5
+    sigma_a: 0.3
+    rho: 0.0
+    prop: 0.3
+REPRODUCTION: inheritance
+MUTATION_RATE: 0.0
+PARAMETER_SWEEPS: {}
+RUN_2D_SWEEP: false
+2D_SWEEP: {}
+SEED: 20250331
+DYNAMIC_FEATURES: []
+DYNAMIC_ACTIVATION_INTERVAL: 15
+ALIGNMENT_IMPROVEMENT_INTERVAL: 20
+LEVEL4_SCENARIOS:
+  Baseline:
+    DYNAMIC_FEATURES: []
+  Mutation:
+    REPRODUCTION: mutation
+    MUTATION_RATE: 0.01
+  Coverage_Mid:
+    ACTIVATION_TYPE: coverage
+    ACTIVATION_PARAMS:
+      coverage: 0.6
+      density: 0.1
+  Correlation_Mid:
+    ACTIVATION_TYPE: correlation
+    ACTIVATION_PARAMS:
+      correlation: 0.5
+      density: 0.1
+  Dynamic_Test:
+    DYNAMIC_FEATURES:
+    - dynamic_test
+  Improving_Align:
+    DYNAMIC_FEATURES:
+    - improving_alignment
+  Combined_Dynamic_Mutation:
+    ACTIVATION_TYPE: coverage
+    ACTIVATION_PARAMS:
+      coverage: 0.6
+      density: 0.1
+    REPRODUCTION: mutation
+    MUTATION_RATE: 0.01
+    DYNAMIC_FEATURES:
+    - dynamic_test
+    - improving_alignment
+    DYNAMIC_ACTIVATION_INTERVAL: 12
+    ALIGNMENT_IMPROVEMENT_INTERVAL: 18
+    BELIEF_GENERATION:
+      target_rho: 0.95
+RESULTS_DIR: results/level4_final_results
