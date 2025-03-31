@@ -16,6 +16,8 @@ import glob
 import yaml # For loading config
 import shutil # For copying existing plot
 import warnings # To suppress specific warnings if needed
+import scipy.stats # For regression analysis
+import statsmodels.api as sm
 
 # --- Configuration ---
 
@@ -1249,6 +1251,500 @@ def plot_final_population_beliefs(run_dir, config_params, filename_base, title_p
         print(f"  Error plotting final population beliefs from {npz_path}: {e}")
 
 
+# --- NEW: Function to analyze parameter-history correlations ---
+def analyze_param_history_correlation(data_sources, param_key, output_filename_base):
+    """
+    Analyzes correlation between a parameter (rho/beta) and the mean/std of fitness and value histories.
+    
+    Args:
+        data_sources: Dictionary mapping source names to directories
+        param_key: Parameter to analyze (e.g., "rho", "beta")
+        output_filename_base: Base name for output figures
+    """
+    print(f"\n--- Analyzing correlation between {param_key} and history statistics ---")
+    
+    # This will store our correlation data
+    # Structure: {param_value: {'fitness': {'mean_of_means': val, 'mean_of_stds': val, ...}, 'value': {...}}}
+    correlation_data = {}
+    
+    # Get parameter info
+    sweep_info = ANALYSIS_FILES.get(param_key)
+    if not sweep_info:
+        print(f"  Error: Analysis info for '{param_key}' not found")
+        return None, None
+    
+    # Process each source directory
+    for source_name, source_dir in data_sources.items():
+        if not os.path.isdir(source_dir):
+            print(f"  Warning: Source directory not found for {source_name} at {source_dir}")
+            continue
+            
+        # Find parameter sweep subdirectories
+        param_pattern = f"{param_key}_*"
+        param_dirs = glob.glob(os.path.join(source_dir, param_pattern))
+        
+        if not param_dirs:
+            print(f"  Warning: No {param_key} sweep directories found in {source_dir}")
+            continue
+            
+        print(f"  Found {len(param_dirs)} parameter directories for {param_key} in {source_name}")
+        
+        # Process each parameter value directory
+        for param_dir in param_dirs:
+            # Extract parameter value from directory name
+            dir_name = os.path.basename(param_dir)
+            param_value_str = dir_name.replace(f"{param_key}_", "")
+            try:
+                param_value = float(param_value_str)
+            except ValueError:
+                print(f"    Warning: Could not parse parameter value from {dir_name}, skipping")
+                continue
+                
+            # Initialize data structure for this parameter value
+            if param_value not in correlation_data:
+                correlation_data[param_value] = {
+                    'fitness': {'mean_hist_means': [], 'mean_hist_stds': [], 'final_means': [], 'final_stds': []},
+                    'value': {'mean_hist_means': [], 'mean_hist_stds': [], 'final_means': [], 'final_stds': []}
+                }
+            
+            # Load run files for this parameter value
+            run_files = glob.glob(os.path.join(param_dir, "run_*_arrays.npz"))
+            
+            if not run_files:
+                print(f"    Warning: No run data found for {param_key}={param_value}")
+                continue
+                
+            print(f"    Processing {len(run_files)} runs for {param_key}={param_value}")
+            
+            # Process each run file
+            for run_file in run_files:
+                try:
+                    with np.load(run_file, allow_pickle=True) as data:
+                        # Process fitness history
+                        if 'history_fitness' in data:
+                            fitness_hist = data['history_fitness']
+                            if fitness_hist.size > 0:
+                                # Calculate mean and std of this history
+                                fitness_mean = np.mean(fitness_hist)
+                                fitness_std = np.std(fitness_hist)
+                                final_fitness = fitness_hist[-1]
+                                
+                                correlation_data[param_value]['fitness']['mean_hist_means'].append(fitness_mean)
+                                correlation_data[param_value]['fitness']['mean_hist_stds'].append(fitness_std)
+                                correlation_data[param_value]['fitness']['final_means'].append(final_fitness)
+                                
+                        # Process value history
+                        if 'history_value' in data:
+                            value_hist = data['history_value']
+                            if value_hist.size > 0:
+                                # Calculate mean and std of this history
+                                value_mean = np.mean(value_hist)
+                                value_std = np.std(value_hist)
+                                final_value = value_hist[-1]
+                                
+                                correlation_data[param_value]['value']['mean_hist_means'].append(value_mean)
+                                correlation_data[param_value]['value']['mean_hist_stds'].append(value_std)
+                                correlation_data[param_value]['value']['final_means'].append(final_value)
+                                
+                except Exception as e:
+                    print(f"    Error processing {run_file}: {e}")
+    
+    # Prepare data for plotting
+    if not correlation_data:
+        print(f"  No correlation data collected for {param_key}")
+        return None, None
+        
+    # Convert to dataframe for easier analysis and plotting
+    plot_data = {
+        'param_value': [],
+        'fitness_mean_of_means': [], 'fitness_std_of_means': [],
+        'fitness_mean_of_stds': [], 'fitness_std_of_stds': [],
+        'value_mean_of_means': [], 'value_std_of_means': [],
+        'value_mean_of_stds': [], 'value_std_of_stds': [],
+        'final_fitness_mean': [], 'final_fitness_std': [],
+        'final_value_mean': [], 'final_value_std': []
+    }
+    
+    for param_value, metrics in correlation_data.items():
+        plot_data['param_value'].append(param_value)
+        
+        # Process fitness data
+        fitness_data = metrics['fitness']
+        if fitness_data['mean_hist_means']:
+            plot_data['fitness_mean_of_means'].append(np.mean(fitness_data['mean_hist_means']))
+            plot_data['fitness_std_of_means'].append(np.std(fitness_data['mean_hist_means']))
+            plot_data['fitness_mean_of_stds'].append(np.mean(fitness_data['mean_hist_stds']))
+            plot_data['fitness_std_of_stds'].append(np.std(fitness_data['mean_hist_stds']))
+            plot_data['final_fitness_mean'].append(np.mean(fitness_data['final_means']))
+            plot_data['final_fitness_std'].append(np.std(fitness_data['final_means']))
+        else:
+            plot_data['fitness_mean_of_means'].append(np.nan)
+            plot_data['fitness_std_of_means'].append(np.nan)
+            plot_data['fitness_mean_of_stds'].append(np.nan)
+            plot_data['fitness_std_of_stds'].append(np.nan)
+            plot_data['final_fitness_mean'].append(np.nan)
+            plot_data['final_fitness_std'].append(np.nan)
+            
+        # Process value data
+        value_data = metrics['value']
+        if value_data['mean_hist_means']:
+            plot_data['value_mean_of_means'].append(np.mean(value_data['mean_hist_means']))
+            plot_data['value_std_of_means'].append(np.std(value_data['mean_hist_means']))
+            plot_data['value_mean_of_stds'].append(np.mean(value_data['mean_hist_stds']))
+            plot_data['value_std_of_stds'].append(np.std(value_data['mean_hist_stds']))
+            plot_data['final_value_mean'].append(np.mean(value_data['final_means']))
+            plot_data['final_value_std'].append(np.std(value_data['final_means']))
+        else:
+            plot_data['value_mean_of_means'].append(np.nan)
+            plot_data['value_std_of_means'].append(np.nan)
+            plot_data['value_mean_of_stds'].append(np.nan)
+            plot_data['value_std_of_stds'].append(np.nan)
+            plot_data['final_value_mean'].append(np.nan)
+            plot_data['final_value_std'].append(np.nan)
+    
+    # Convert to pandas DataFrame and sort by parameter value
+    df = pd.DataFrame(plot_data)
+    df = df.sort_values('param_value')
+    
+    # Calculate correlation coefficients
+    corr_results = {
+        'fitness_mean': np.corrcoef(df['param_value'], df['fitness_mean_of_means'])[0,1],
+        'fitness_std': np.corrcoef(df['param_value'], df['fitness_mean_of_stds'])[0,1],
+        'value_mean': np.corrcoef(df['param_value'], df['value_mean_of_means'])[0,1],
+        'value_std': np.corrcoef(df['param_value'], df['value_mean_of_stds'])[0,1],
+        'final_fitness': np.corrcoef(df['param_value'], df['final_fitness_mean'])[0,1],
+        'final_value': np.corrcoef(df['param_value'], df['final_value_mean'])[0,1]
+    }
+    
+    print("  Correlation coefficients:")
+    for metric, coef in corr_results.items():
+        print(f"    {param_key} vs {metric}: {coef:.4f}")
+    
+    # Create plots
+    param_name_nice = param_key.replace("_", " ").title()
+    
+    # Plot 1: Parameter vs Fitness Statistics
+    fig1, axs1 = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Plot mean of fitness histories
+    ax = axs1[0]
+    ax.errorbar(df['param_value'], df['fitness_mean_of_means'], yerr=df['fitness_std_of_means'],
+                fmt='o-', capsize=4, label=f"r = {corr_results['fitness_mean']:.4f}")
+    ax.set_xlabel(param_name_nice, fontweight='bold')
+    ax.set_ylabel('Mean of Fitness History', fontweight='bold')
+    ax.set_title(f'{param_name_nice} vs Mean Fitness', fontweight='bold')
+    ax.grid(True, linestyle=':', alpha=0.7)
+    ax.legend()
+    
+    # Plot std of fitness histories
+    ax = axs1[1]
+    ax.errorbar(df['param_value'], df['fitness_mean_of_stds'], yerr=df['fitness_std_of_stds'],
+                fmt='o-', capsize=4, color='green', label=f"r = {corr_results['fitness_std']:.4f}")
+    ax.set_xlabel(param_name_nice, fontweight='bold')
+    ax.set_ylabel('Mean of Fitness StdDev', fontweight='bold')
+    ax.set_title(f'{param_name_nice} vs Fitness Variability', fontweight='bold')
+    ax.grid(True, linestyle=':', alpha=0.7)
+    ax.legend()
+    
+    fig1.suptitle(f'Correlation: {param_name_nice} vs Fitness Statistics', fontsize=plt.rcParams['figure.titlesize'], fontweight='bold')
+    fig1.tight_layout(rect=[0, 0.03, 1, 0.93])
+    save_figure(fig1, f"{output_filename_base}_{param_key}_vs_fitness_stats")
+    
+    # Plot 2: Parameter vs Value Statistics
+    fig2, axs2 = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Plot mean of value histories
+    ax = axs2[0]
+    ax.errorbar(df['param_value'], df['value_mean_of_means'], yerr=df['value_std_of_means'],
+                fmt='o-', capsize=4, label=f"r = {corr_results['value_mean']:.4f}")
+    ax.set_xlabel(param_name_nice, fontweight='bold')
+    ax.set_ylabel('Mean of Value History', fontweight='bold')
+    ax.set_title(f'{param_name_nice} vs Mean Value', fontweight='bold')
+    ax.grid(True, linestyle=':', alpha=0.7)
+    ax.legend()
+    
+    # Plot std of value histories
+    ax = axs2[1]
+    ax.errorbar(df['param_value'], df['value_mean_of_stds'], yerr=df['value_std_of_stds'],
+                fmt='o-', capsize=4, color='green', label=f"r = {corr_results['value_std']:.4f}")
+    ax.set_xlabel(param_name_nice, fontweight='bold')
+    ax.set_ylabel('Mean of Value StdDev', fontweight='bold')
+    ax.set_title(f'{param_name_nice} vs Value Variability', fontweight='bold')
+    ax.grid(True, linestyle=':', alpha=0.7)
+    ax.legend()
+    
+    fig2.suptitle(f'Correlation: {param_name_nice} vs Value Statistics', fontsize=plt.rcParams['figure.titlesize'], fontweight='bold')
+    fig2.tight_layout(rect=[0, 0.03, 1, 0.93])
+    save_figure(fig2, f"{output_filename_base}_{param_key}_vs_value_stats")
+    
+    # Plot 3: Parameter vs Final Values
+    fig3, axs3 = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Plot final fitness
+    ax = axs3[0]
+    ax.errorbar(df['param_value'], df['final_fitness_mean'], yerr=df['final_fitness_std'],
+                fmt='o-', capsize=4, label=f"r = {corr_results['final_fitness']:.4f}")
+    ax.set_xlabel(param_name_nice, fontweight='bold')
+    ax.set_ylabel('Final Fitness', fontweight='bold')
+    ax.set_title(f'{param_name_nice} vs Final Fitness', fontweight='bold')
+    ax.grid(True, linestyle=':', alpha=0.7)
+    ax.legend()
+    
+    # Plot final value
+    ax = axs3[1]
+    ax.errorbar(df['param_value'], df['final_value_mean'], yerr=df['final_value_std'],
+                fmt='o-', capsize=4, color='green', label=f"r = {corr_results['final_value']:.4f}")
+    ax.set_xlabel(param_name_nice, fontweight='bold')
+    ax.set_ylabel('Final Value', fontweight='bold')
+    ax.set_title(f'{param_name_nice} vs Final Value', fontweight='bold')
+    ax.grid(True, linestyle=':', alpha=0.7)
+    ax.legend()
+    
+    fig3.suptitle(f'Correlation: {param_name_nice} vs Final Outcomes', fontsize=plt.rcParams['figure.titlesize'], fontweight='bold')
+    fig3.tight_layout(rect=[0, 0.03, 1, 0.93])
+    save_figure(fig3, f"{output_filename_base}_{param_key}_vs_final_values")
+    
+    return df, corr_results
+
+# --- REVISED Function for regression analysis of parameter impact on FINAL outcomes ---
+def regression_analysis(aggregated_df, param_key, output_filename_base):
+    """
+    Performs regression analysis to quantify the impact of a parameter on the
+    MEAN and STANDARD DEVIATION of final simulation outcomes.
+
+    Args:
+        aggregated_df: DataFrame from load_sweep_data (contains mean_final_*, std_final_* cols).
+        param_key: Parameter analyzed (e.g., "rho", "beta"). Column name in df.
+        output_filename_base: Base name for output figures.
+    """
+    print(f"\n--- Performing regression analysis for {param_key} impact on Final Outcomes ---")
+
+    if aggregated_df is None or aggregated_df.empty:
+        print("  Error: No data provided for regression analysis")
+        return None # Return None if no data
+
+    if param_key not in aggregated_df.columns:
+         print(f"  Error: Parameter column '{param_key}' not found in DataFrame.")
+         return None
+
+    # Define dependent variables (metrics) and their corresponding columns
+    # Focusing on FINAL outcomes (Mean and Std Dev across runs)
+    metrics_to_analyze = {
+        # Metric Name : (Mean Column, Std Column for y-data itself, Axis Label)
+        'Mean Final Fitness': (METRICS_INFO['fitness']['mean_col'], METRICS_INFO['fitness']['std_col'], f"Final {METRICS_INFO['fitness']['label']}"),
+        'Mean Final Value': (METRICS_INFO['value']['mean_col'], METRICS_INFO['value']['std_col'], f"Final {METRICS_INFO['value']['label']}"),
+        'Mean Final Deceptive Ratio': (METRICS_INFO['deceptive_ratio_raw']['mean_col'], METRICS_INFO['deceptive_ratio_raw']['std_col'], f"Final {METRICS_INFO['deceptive_ratio_raw']['label']}"),
+        'Std Dev Final Fitness': (METRICS_INFO['fitness']['std_col'], None, f"Std Dev Final {METRICS_INFO['fitness']['label']}"), # No error bars for std dev plot
+        'Std Dev Final Value': (METRICS_INFO['value']['std_col'], None, f"Std Dev Final {METRICS_INFO['value']['label']}"),
+        'Std Dev Final Deceptive Ratio': (METRICS_INFO['deceptive_ratio_raw']['std_col'], None, f"Std Dev Final {METRICS_INFO['deceptive_ratio_raw']['label']}")
+    }
+
+    regression_summary = {}
+    param_name_nice = param_key.replace("_", " ").title()
+
+    # Create a 2x3 plot layout
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10)) # Keep 2x3 layout
+    axs = axs.flatten() # Flatten for easy indexing
+
+    plot_idx = 0
+    for metric_name, (y_col, y_err_col, y_label) in metrics_to_analyze.items():
+
+        if y_col not in aggregated_df.columns:
+            print(f"  Warning: Metric column '{y_col}' not found for '{metric_name}'. Skipping.")
+            # Optionally draw an empty axis
+            if plot_idx < len(axs):
+                 axs[plot_idx].set_title(f"{param_name_nice} vs {metric_name}\n(Data Missing)", fontweight='bold')
+                 axs[plot_idx].text(0.5, 0.5, 'Data Missing', ha='center', va='center', transform=axs[plot_idx].transAxes, color='red')
+            plot_idx += 1
+            continue
+
+        # Filter out rows with NaN values for this specific metric and the parameter
+        valid_data = aggregated_df.dropna(subset=[param_key, y_col])
+
+        if len(valid_data) < 2:
+            print(f"  Warning: Not enough valid data points for {metric_name} regression (need >= 2).")
+            regression_summary[metric_name] = {'equation': 'Insufficient data', 'r_value': np.nan, 'p_value': np.nan}
+            # Optionally draw an empty axis
+            if plot_idx < len(axs):
+                axs[plot_idx].set_title(f"{param_name_nice} vs {metric_name}\n(Insufficient Data)", fontweight='bold')
+                axs[plot_idx].text(0.5, 0.5, 'Insufficient Data', ha='center', va='center', transform=axs[plot_idx].transAxes, color='orange')
+            plot_idx += 1
+            continue
+
+        # Perform linear regression
+        x = valid_data[param_key]
+        y = valid_data[y_col]
+
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+
+        # Format equation string for display
+        if abs(intercept) < 0.001 and abs(slope) > 0.001 : # Avoid showing tiny intercept unless slope is also tiny
+            equation = f"y = {slope:.3f}x"
+        elif intercept >= 0:
+            equation = f"y = {slope:.3f}x + {intercept:.3f}"
+        else:
+            equation = f"y = {slope:.3f}x - {abs(intercept):.3f}"
+
+        # Store regression results
+        regression_summary[metric_name] = {
+            'slope': slope, 'intercept': intercept, 'r_value': r_value,
+            'p_value': p_value, 'std_err': std_err, 'equation': equation
+        }
+
+        # --- Plotting ---
+        ax = axs[plot_idx]
+        # Scatter plot of the means or std devs
+        ax.scatter(x, y, s=60, alpha=0.8, edgecolors='k', linewidth=0.5)
+
+        # Plot regression line
+        x_range = np.linspace(x.min(), x.max(), 100)
+        y_range = slope * x_range + intercept
+        ax.plot(x_range, y_range, color='red', linestyle='--', linewidth=2)
+
+        # Add regression stats as text
+        stats_text = ( f"{equation}\n"
+                       f"R² = {r_value**2:.3f}\n"
+                       f"p = {p_value:.3g}" ) # Use scientific notation for small p
+
+        # Position text box appropriately
+        ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.8))
+
+        ax.set_title(f"{param_name_nice} vs {metric_name}", fontweight='bold')
+        ax.set_xlabel(param_name_nice, fontweight='bold')
+        ax.set_ylabel(y_label, fontweight='bold') # Use specific axis label
+        ax.grid(True, linestyle=':', alpha=0.7)
+
+        # Add reference line for value/deceptive ratio means if applicable
+        if 'Mean Final Value' in metric_name:
+             ax.axhline(0, color='black', linestyle=':', linewidth=1.5, alpha=0.7)
+        # Set y-limits for standard deviation plots to start from 0
+        if 'Std Dev' in metric_name:
+             ax.set_ylim(bottom=0)
+
+        plot_idx += 1
+
+    # Handle any remaining empty axes if some metrics were skipped
+    while plot_idx < len(axs):
+        axs[plot_idx].axis('off') # Turn off empty axes
+        plot_idx +=1
+
+
+    fig.suptitle(f'Impact of {param_name_nice} on Final Outcomes (Mean & Std Dev across Runs)',
+                 fontsize=plt.rcParams['figure.titlesize'], fontweight='bold')
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust rect for suptitle
+    save_figure(fig, f"{output_filename_base}_{param_key}_regression")
+
+    # Print summary of findings
+    print("\n  Regression Analysis Summary:")
+    for metric, results in regression_summary.items():
+        significant = "**YES**" if results.get('p_value', 1) < 0.05 else "NO"
+        rsq_str = f"{results.get('r_value', np.nan)**2:.3f}" if not np.isnan(results.get('r_value', np.nan)) else "N/A"
+        pval_str = f"{results.get('p_value', np.nan):.3g}" if not np.isnan(results.get('p_value', np.nan)) else "N/A"
+        print(f"  - {param_key} -> {metric}:")
+        print(f"      Equation: {results.get('equation', 'N/A')}")
+        print(f"      R² = {rsq_str}, p = {pval_str} (Significant: {significant})")
+
+    return regression_summary
+
+def plot_l2_deceptive_vs_beta_heatmap():
+    """
+    Creates publication-quality heatmap for L2 comparing initial deceptive proportion vs beta.
+    This function is specifically designed to highlight the effects of initially deceptive beliefs
+    versus selection pressure (beta) in Level 2 simulations.
+    """
+    print("\nGenerating L2 Deceptive Proportion vs Beta Heatmap...")
+    
+    # Load L2 2D sweep data
+    l2_dir = os.path.join(RESULTS_BASE_DIR, L2_DIR_NAME)
+    l2_2d_data = load_2d_sweep_data(l2_dir)
+    
+    if l2_2d_data is None:
+        print("  Error: No L2 2D sweep data found. Ensure 2D sweep has been run with deceptive_prop and beta.")
+        return
+        
+    # Check if the 2D sweep is for the right parameters
+    p1_name = l2_2d_data['param1_name']
+    p2_name = l2_2d_data['param2_name']
+    
+    if not ((p1_name == "beta" and p2_name == "deceptive_prop") or 
+            (p1_name == "deceptive_prop" and p2_name == "beta")):
+        print(f"  Error: L2 2D sweep is for {p1_name} vs {p2_name}, not beta vs deceptive_prop as expected.")
+        return
+    
+    # If parameters are flipped, rearrange the data for consistency
+    if p1_name == "deceptive_prop" and p2_name == "beta":
+        # Swap parameter names and values
+        l2_2d_data['param1_name'], l2_2d_data['param2_name'] = l2_2d_data['param2_name'], l2_2d_data['param1_name']
+        l2_2d_data['param1_values'], l2_2d_data['param2_values'] = l2_2d_data['param2_values'], l2_2d_data['param1_values']
+        
+        # Transpose data arrays for consistency
+        l2_2d_data['mean_fitness'] = l2_2d_data['mean_fitness'].T
+        l2_2d_data['mean_value'] = l2_2d_data['mean_value'].T
+        l2_2d_data['mean_deceptive'] = l2_2d_data['mean_deceptive'].T
+    
+    # Now data should be in the format: param1=beta (rows/y-axis), param2=deceptive_prop (cols/x-axis)
+    beta_values = l2_2d_data['param1_values']
+    deceptive_prop_values = l2_2d_data['param2_values']
+    
+    # Get the data arrays
+    mean_fitness = l2_2d_data['mean_fitness']
+    mean_value = l2_2d_data['mean_value']
+    mean_deceptive = l2_2d_data['mean_deceptive']
+
+    # Create a figure with 3 subplots (3x1 layout) - one for each metric
+    fig, axs = plt.subplots(3, 1, figsize=(8, 17))
+    
+    # Prepare labels for axes
+    beta_labels = [f"{v:.2g}" for v in beta_values]
+    deceptive_prop_labels = [f"{v:.2g}" for v in deceptive_prop_values]
+    
+    # Get nice metric labels from METRICS_INFO
+    fitness_label = METRICS_INFO.get('fitness', {}).get('label', 'Fitness')
+    value_label = METRICS_INFO.get('value', {}).get('label', 'True Value')
+    decep_label = METRICS_INFO.get('deceptive_ratio_raw', {}).get('label', 'Deceptive Ratio')
+    
+    # 1. Plot Fitness Heatmap
+    create_heatmap(deceptive_prop_values, beta_values, mean_fitness, ax=axs[0], annotate=True,
+                  xlabel="Initial Deceptive Proportion", ylabel="Selection Pressure (β)", 
+                  title=f'Final {fitness_label}',
+                  cmap='viridis', colorbar_label=fitness_label,
+                  xticklabels=deceptive_prop_labels, yticklabels=beta_labels)
+    
+    # 2. Plot True Value Heatmap
+    # Calculate robust vmin/vmax for RdBu_r centered around 0
+    val_data_clean = mean_value[~np.isnan(mean_value)]
+    val_max_abs = np.max(np.abs(val_data_clean)) if val_data_clean.size > 0 else 1.0
+    vmin_val, vmax_val = -val_max_abs, val_max_abs
+    
+    create_heatmap(deceptive_prop_values, beta_values, mean_value, ax=axs[1], annotate=True,
+                  xlabel="Initial Deceptive Proportion", ylabel="Selection Pressure (β)", 
+                  title=f'Final {value_label}',
+                  cmap='RdBu_r', vmin=vmin_val, vmax=vmax_val, colorbar_label=value_label,
+                  xticklabels=deceptive_prop_labels, yticklabels=beta_labels)
+    
+    # 3. Plot Deceptive Ratio Heatmap
+    # Calculate robust vmax for deceptive ratio (vmin is 0)
+    decep_data_clean = mean_deceptive[~np.isnan(mean_deceptive)]
+    vmax_dec = np.max(decep_data_clean) if decep_data_clean.size > 0 else 1.0
+    
+    create_heatmap(deceptive_prop_values, beta_values, mean_deceptive, ax=axs[2], annotate=True,
+                  xlabel="Initial Deceptive Proportion", ylabel="Selection Pressure (β)", 
+                  title=f'Final {decep_label}',
+                  cmap='Reds', vmin=0, vmax=max(0.01, vmax_dec), colorbar_label=decep_label,
+                  xticklabels=deceptive_prop_labels, yticklabels=beta_labels)
+    
+    # Set an informative title for the figure
+    fig.suptitle('L2: Effects of Initial Deceptive Proportion vs Selection Pressure (β)', 
+                fontsize=plt.rcParams['figure.titlesize'])
+    
+    # Adjust layout to make room for the title
+    fig.tight_layout(rect=[0, 0.01, 1, 0.98])
+    
+    # Save the figure
+    save_figure(fig, "fig_L2_deceptive_vs_beta_heatmap")
+    print("  L2 Deceptive Proportion vs Beta Heatmap created successfully.")
+
 # --- Main Execution ---
 
 if __name__ == "__main__":
@@ -1284,6 +1780,7 @@ if __name__ == "__main__":
         if l1_2d_data:
             # Ensure param names match expected for title generation if needed
             plot_2d_heatmaps(l1_2d_data, "fig3_L1_rho_beta_2D", title_prefix="L1: ")
+
 
     else:
         print(f"Warning: Level 1 directory or config not found at {l1_dir}. Skipping L1 plots.")
@@ -1322,9 +1819,8 @@ if __name__ == "__main__":
             else:
                  print(f"Skipping Level 2 {param_key} sweep - analysis info not found.")
 
-        # Optional: L2 2D sweep if run
-        # l2_2d_data = load_2d_sweep_data(l2_dir)
-        # if l2_2d_data: plot_2d_heatmaps(l2_2d_data, "fig_L2_2D", title_prefix="L2 ")
+        # L2 2D sweep (beta vs deceptive_prop)
+        plot_l2_deceptive_vs_beta_heatmap()
 
         # Plot Final Pop for representative condition (e.g., mid global_correlation)
         # Find a specific run directory, e.g., from the middle of a sweep
@@ -1509,3 +2005,58 @@ print(" Analysis Figure Generation Script Finished ".center(60, '*'))
 print(" Figures saved in: ".center(60, ' '))
 print(f" {os.path.abspath(FIGURE_OUTPUT_DIR)} ".center(60, ' '))
 print("*"*60)
+
+# --- Parameter-History Correlation Analysis ---
+print("\n" + "="*20 + " Parameter Impact Analysis " + "="*20)
+
+# Analyze correlation for L1 (simpler landscape)
+l1_dir = os.path.join(RESULTS_BASE_DIR, L1_DIR_NAME)
+if os.path.isdir(l1_dir):
+    print("\nAnalyzing L1 parameter impacts...")
+    # Analyze rho impact on outcomes
+    l1_rho_data = load_sweep_data({'L1': l1_dir}, "rho")
+    if 'L1' in l1_rho_data:
+        regression_analysis(l1_rho_data['L1'], "rho", "fig_reg_L1")
+        
+    # Analyze beta impact on outcomes
+    l1_beta_data = load_sweep_data({'L1': l1_dir}, "beta")
+    if 'L1' in l1_beta_data:
+        regression_analysis(l1_beta_data['L1'], "beta", "fig_reg_L1")
+
+# Analyze correlation for L2 (clustered landscape)
+l2_dir = os.path.join(RESULTS_BASE_DIR, L2_DIR_NAME)
+if os.path.isdir(l2_dir):
+    print("\nAnalyzing L2 parameter impacts...")
+    # Analyze beta impact on outcomes
+    l2_beta_data = load_sweep_data({'L2': l2_dir}, "beta")
+    if 'L2' in l2_beta_data:
+        regression_analysis(l2_beta_data['L2'], "beta", "fig_reg_L2")
+        
+    # Analyze other L2-specific parameters
+    for param in ["global_correlation", "deceptive_prop"]:
+        l2_param_data = load_sweep_data({'L2': l2_dir}, param)
+        if 'L2' in l2_param_data:
+            regression_analysis(l2_param_data['L2'], param, "fig_reg_L2")
+
+# Analyze parameter impacts across L3 scenarios
+print("\nAnalyzing L3 parameter impacts across scenarios...")
+l3_dirs = {name: os.path.join(RESULTS_BASE_DIR, dirname)
+           for name, dirname in L3_SCENARIO_DIR_NAMES.items()
+           if os.path.isdir(os.path.join(RESULTS_BASE_DIR, dirname))}
+
+if l3_dirs:
+    # Analyze each scenario individually for beta impact
+    for scenario_name, scenario_dir in l3_dirs.items():
+        print(f"\nAnalyzing beta impact for scenario: {scenario_name}")
+        l3_beta_data = load_sweep_data({scenario_name: scenario_dir}, "beta")
+        if scenario_name in l3_beta_data:
+            regression_analysis(l3_beta_data[scenario_name], "beta", f"fig_reg_L3_{scenario_name}")
+            
+    # Analyze N_Questions impact for each scenario
+    for scenario_name, scenario_dir in l3_dirs.items():
+        print(f"\nAnalyzing N_Questions impact for scenario: {scenario_name}")
+        l3_nq_data = load_sweep_data({scenario_name: scenario_dir}, "N_Questions")
+        if scenario_name in l3_nq_data:
+            regression_analysis(l3_nq_data[scenario_name], "N_Questions", f"fig_reg_L3_{scenario_name}")
+
+print("\n" + "="*20 + " Parameter Impact Analysis Complete " + "="*20)

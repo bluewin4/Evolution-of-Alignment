@@ -18,9 +18,9 @@ BELIEF_GENERATION: # Use clustered landscape
     # Cluster 0: Benign
     - {name: "Benign",    mu_v:  0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.3}
     # Cluster 1: Neutral
-    - {name: "Neutral",   mu_v:  0.1, mu_a:  0.2, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.3}
+    - {name: "Neutral",   mu_v:  0.1, mu_a:  0.2, sigma_v: 0.5, sigma_a: 0.3, rho:  0, prop: 0.4}
     # Cluster 2: Deceptive (Target for prop sweeps)
-    - {name: "Deceptive", mu_v: -0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho: 0, prop: 0.4} # Base prop overridden by sweeps
+    - {name: "Deceptive", mu_v: -0.7, mu_a:  0.7, sigma_v: 0.5, sigma_a: 0.3, rho: 0, prop: 0.3} # Base prop overridden by sweeps
 
 # --- Scenario Settings: MUTATION ---
 ACTIVATION_TYPE: "simple"
@@ -39,4 +39,15 @@ PARAMETER_SWEEPS:
     param_path: ["N_QUESTIONS"]
     values: [25, 75, 150] # Ratios 0.5, 1.5, 3.0
 
-RUN_2D_SWEEP: False
+# Define 2D sweep for deceptive proportion vs selection pressure
+RUN_2D_SWEEP: True
+SWEEP_2D:
+  param1:
+    name: "deceptive_prop"
+    path: ["BELIEF_GENERATION", "clusters", 2, "prop"]
+    values: [0.2, 0.3, 0.4, 0.5, 0.6] # Proportion of deceptive beliefs
+    recalc_proportions: True # Adjust other clusters proportionally
+  param2:
+    name: "beta"
+    path: ["SELECTION_PRESSURE_BETA"]
+    values: [1.0, 5.0, 10.0, 15.0] # Selection pressure

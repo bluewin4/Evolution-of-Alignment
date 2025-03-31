@@ -3,7 +3,9 @@
 
 This project simulates the evolutionary dynamics of AI models under selection pressure based on alignment tests. It explores the potential divergence between tested alignment signals (`a`) and the models' underlying true values (`v`), particularly the risk of "alignment mimicry" where models appear aligned without possessing genuinely beneficial values.
 
-The simulation framework is inspired by the concepts outlined in ["Modelling the evolution of alignment and values in machine intelligence"](./Modelling_the_evolution_of_alignment_and_values.md) (assuming you save the provided text as a markdown file in the repo).
+The simulation framework is inspired by the concepts outlined in ["Modelling the evolution of alignment and values in machine intelligence"](https://elsworth.phd/Formalisms/Analytical-Research/Evolution-of-Alignment-and-Values).
+
+Important note: I forgot to update the base deceptiveness ratio from 0.4 to 0.3 in the sweeps for level 2 and 3. My poor computer is already crying from running all these simulations, so I'm not going to re-run them. I fixed the config files, but the existing data in the repo is still off. It shouldn't be a huge deal, but it is important to note.
 
 ## Overview
 

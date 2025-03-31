@@ -1291,7 +1291,7 @@ def create_2d_heatmaps(param1_name, param1_values, param2_name, param2_values,
 
     # Plot 1: Fitness
     try:
-        create_heatmap(param2_values, param1_values, fitness.T, # Transpose data for imshow/pcolor
+        create_heatmap(param2_values, param1_values, fitness, # Removed .T
                        xlabel=param2_name, ylabel=param1_name, title='Mean Final Fitness',
                        colorbar_label='Mean Final Fitness', ax=axs[0],
                        xticklabels=param2_labels, yticklabels=param1_labels, annotate=True)
@@ -1305,7 +1305,7 @@ def create_2d_heatmaps(param1_name, param1_values, param2_name, param2_values,
         # Use a diverging colormap for value, centered around 0
         val_max_abs = np.nanmax(np.abs(value)) if not np.all(np.isnan(value)) else 1.0
         val_min, val_max = -val_max_abs, val_max_abs
-        create_heatmap(param2_values, param1_values, value.T, # Transpose data
+        create_heatmap(param2_values, param1_values, value, # Removed .T
                        xlabel=param2_name, ylabel=param1_name, title='Mean Final True Value', cmap='RdBu_r',
                        colorbar_label='Mean Final True Value', ax=axs[1], vmin=val_min, vmax=val_max,
                        xticklabels=param2_labels, yticklabels=param1_labels, annotate=True)
@@ -1316,7 +1316,7 @@ def create_2d_heatmaps(param1_name, param1_values, param2_name, param2_values,
 
     # Plot 3: Deceptive Ratio
     try:
-        create_heatmap(param2_values, param1_values, deceptive.T, # Transpose data
+        create_heatmap(param2_values, param1_values, deceptive, # Removed .T
                        xlabel=param2_name, ylabel=param1_name, title='Mean Final Deceptive Ratio', cmap='Reds',
                        colorbar_label='Mean Final Deceptive Ratio', ax=axs[2], vmin=0, # Ratio >= 0
                        xticklabels=param2_labels, yticklabels=param1_labels, annotate=True)
@@ -1351,7 +1351,7 @@ def create_2d_heatmaps(param1_name, param1_values, param2_name, param2_values,
 
         cmap_ratio = 'RdBu_r'
 
-        create_heatmap(param2_values, param1_values, value_fitness_ratio.T, # Transpose data
+        create_heatmap(param2_values, param1_values, value_fitness_ratio, # Removed .T
                        xlabel=param2_name, ylabel=param1_name,
                        title='Mean Final (Value / Fitness) Ratio', cmap=cmap_ratio,
                        colorbar_label='Value / Fitness Ratio', ax=ax_ratio,
